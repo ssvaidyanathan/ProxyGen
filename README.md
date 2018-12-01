@@ -2,7 +2,7 @@
 Generate Proxy and including a VerifyAPIKey policy automatically
 
 ## Pre-Reqs:
-- NodeJs (6.x or later)
+- NodeJS (6.x or later)
 
 ## Steps:
 - Clone this repo and Navigate to the project directory
