@@ -1,0 +1,16 @@
+{
+  "name": "ProxyGen",
+  "version": "1.0.0",
+  "description": "Generate Proxy and including a VerifyAPIKey policy automatically",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"test\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^2.6.1",
+    "openapi2apigee": "^0.6.0",
+    "xml2js": "^0.4.19"
+  }
+}
