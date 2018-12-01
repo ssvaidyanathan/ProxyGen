@@ -46,13 +46,9 @@ function addPolicyToProxyEndpoint(apiProxy, policyName){
       "Name": policyName
     } 
   };
-  var extractedData = "";
-
   fs.readFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', function(err, data) {
       parser.parseString(data, function (err, result) {
-          extractedData = result.ProxyEndpoint.PreFlow;
-          extractedData[0].Request[0] = preflowStep;
-          
+          result.ProxyEndpoint.PreFlow[0].Request[0] = preflowStep;
           var xml = builder.buildObject(result);
           fs.writeFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', xml, function(err, data){
             if (err) console.log(err);
@@ -62,16 +58,27 @@ function addPolicyToProxyEndpoint(apiProxy, policyName){
   });
 }
 
+//Add Verify-API-Key policy to the bundle descriptor file
+function addPolicyToDescriptor(apiProxy, policyName){
+  fs.readFile(__dirname + '/' +apiProxy+ '/apiproxy/'+apiProxy+'.xml', function(err, data) {
+      parser.parseString(data, function (err, result) {
+          result.APIProxy.Policies = {
+            "Policy": policyName
+          };
+          var xml = builder.buildObject(result);
+          fs.writeFile(__dirname + '/' +apiProxy+ '/apiproxy/'+apiProxy+'.xml', xml, function(err, data){
+            if (err) console.log(err);
+            console.log("Successfully update Proxy descriptor");
+        });
+      });
+  });
+}
+
 //Remove Verify-API-Key from Proxy endpoint configuration
 function removePolicyToProxyEndpoint(apiProxy){
-  var preflowStep = {};
-  var extractedData = "";
-
   fs.readFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', function(err, data) {
       parser.parseString(data, function (err, result) {
-          extractedData = result.ProxyEndpoint.PreFlow;
-          extractedData[0].Request[0] = preflowStep;
-          
+          result.ProxyEndpoint.PreFlow[0].Request[0] = {};
           var xml = builder.buildObject(result);
           fs.writeFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', xml, function(err, data){
             if (err) console.log(err);
@@ -91,6 +98,7 @@ openapi2apigee.generateApi(apiProxy, options, function(err){
   deleteZip("testProxy");
   addVerifyAPIKeyPolicy("testProxy");
   addPolicyToProxyEndpoint("testProxy", "Verify-API-Key");
+  addPolicyToDescriptor("testProxy", "Verify-API-Key");
 });
 
 //In case to revert the Proxy endpoint config
