@@ -1,5 +1,5 @@
 # ProxyGen
-Generate Proxy and including a VerifyAPIKey policy automatically
+Generate Proxy using OpenAPI Spec and include a VerifyAPIKey policy automatically
 
 ## Pre-Reqs:
 - NodeJS (6.x or later)
