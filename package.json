@@ -11,6 +11,7 @@
   "dependencies": {
     "async": "^2.6.1",
     "openapi2apigee": "^0.6.0",
+    "prompt": "^1.0.0",
     "xml2js": "^0.4.19"
   }
 }

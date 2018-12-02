@@ -10,6 +10,6 @@ Generate Proxy using OpenAPI Spec and include a VerifyAPIKey policy automaticall
 - run  `node index.js`
 - This should create a proxy called `testProxy` in your current directory with a Verify-API-Key policy added to the `policies` folder and also included in the Proxy Endpoint configuration
 
-### To-DO:
-- Externalize the params using commander or similar
-- Use URL or files for `source` attributes
+### To-Do:
+- Add other policies like Flow Callout in the Preflow
+- Fault Rules

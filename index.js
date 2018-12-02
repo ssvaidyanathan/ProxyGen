@@ -1,9 +1,45 @@
+var prompt = require("prompt");
+var colors = require("colors/safe");
+
 var fs = require('fs');
 var xml2js = require('xml2js');
 var  openapi2apigee = require('openapi2apigee/lib/commands/generateApi/generateApi.js');
 var parser = new xml2js.Parser({ explicitArray: true });
 var builder = new xml2js.Builder();
-var async = require("async");
+var async = require("async"); 
+
+
+var schema = {
+    properties: {
+      apiProxy: {
+        description: colors.yellow("Please provide the Apigee proxy name"),
+        message: colors.red("Apigee proxy name cannot be empty!"),
+        required: true
+      },
+      source: {
+        description: colors.yellow("Please provide the OpenAPI Spec URL or full path of the file"),
+        message: colors.red("Source cannot be empty!"),
+        required: true
+      },
+      destination: {
+        description: colors.yellow("Please provide the file path where the proxy needs to be created"),
+        message: colors.red("Destination cannot be empty!"),
+        required: true
+      }
+    }
+  };
+
+//
+// Start the prompt
+//
+prompt.start();
+//
+// Get two properties from the user: email, password
+//
+prompt.get(schema, function (err, options) {
+  //console.log(JSON.stringify(options));
+  generateAPI(options.apiProxy, options.source, options.destination);
+});
 
 //OpenAPI2Apigee creates an apiproxy.zip, deleting that
 function deleteZip(apiProxy){
@@ -88,18 +124,19 @@ function removePolicyToProxyEndpoint(apiProxy){
   });
 }
 
-var apiProxy = "testProxy";
-var options = {
-    source: "http://petstore.swagger.io/v2/swagger.json",
-    destination: "."
+function generateAPI(apiProxy, source, destination){
+  var options = {
+    source,
+    destination
   };
-openapi2apigee.generateApi(apiProxy, options, function(err){
-  if(err) return console.log(err);
-  deleteZip("testProxy");
-  addVerifyAPIKeyPolicy("testProxy");
-  addPolicyToProxyEndpoint("testProxy", "Verify-API-Key");
-  addPolicyToDescriptor("testProxy", "Verify-API-Key");
-});
+  openapi2apigee.generateApi(apiProxy, options, function(err){
+    if(err) return console.log(err);
+    deleteZip(apiProxy);
+    addVerifyAPIKeyPolicy(apiProxy);
+    addPolicyToProxyEndpoint(apiProxy, "Verify-API-Key");
+    addPolicyToDescriptor(apiProxy, "Verify-API-Key");
+  });
+}
 
 //In case to revert the Proxy endpoint config
 //removePolicyToProxyEndpoint("testProxy");
