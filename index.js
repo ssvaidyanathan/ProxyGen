@@ -37,7 +37,6 @@ prompt.start();
 // Get two properties from the user: email, password
 //
 prompt.get(schema, function (err, options) {
-  //console.log(JSON.stringify(options));
   generateAPI(options.apiProxy, options.source, options.destination);
 });
 
@@ -50,16 +49,16 @@ function deleteZip(apiProxy){
 }
 
 //Create Verify API Key policy in the policies directory
-function addVerifyAPIKeyPolicy(apiProxy){
+function addVerifyAPIKeyPolicy(apiProxy, policyName){
   var verifyapikey = {
    "VerifyAPIKey":{
       "$":{
           "async": "false",
           "continueOnError": "false",
           "enabled": "true",
-          "name": "Verify-API-Key"
+          "name": policyName
       },
-      "DisplayName":"Verify-API-Key",
+      "DisplayName": policyName,
       "Properties":null,
       "APIKey":{
         "$":{
@@ -69,7 +68,30 @@ function addVerifyAPIKeyPolicy(apiProxy){
    }
   };
   var xml = builder.buildObject(verifyapikey);
-  fs.writeFile(__dirname+'/'+apiProxy+'/apiproxy/policies/Verify-API-Key.xml', xml, function(err, data){
+  fs.writeFile(__dirname+'/'+apiProxy+'/apiproxy/policies/'+policyName+'.xml', xml, function(err, data){
+      if (err) console.log(err);
+      console.log("Successfully Written to File.");
+  });
+}
+
+//Create JS policy in the policies directory
+function addJSPolicy(apiProxy, policyName){
+  var jsPolicy = {
+   "Javascript":{
+      "$":{
+          "async": "false",
+          "continueOnError": "false",
+          "enabled": "true",
+          "timeLimit": "200",
+          "name": policyName
+      },
+      "DisplayName":policyName,
+      "Properties":null,
+      "ResourceURL": policyName+".js"
+   }
+  };
+  var xml = builder.buildObject(jsPolicy);
+  fs.writeFile(__dirname+'/'+apiProxy+'/apiproxy/policies/'+policyName+'.xml', xml, function(err, data){
       if (err) console.log(err);
       console.log("Successfully Written to File.");
   });
@@ -112,13 +134,13 @@ function addPoliciesToProxyEndpoint(apiProxy, policyName){
   });
 }
 
-//Add Verify-API-Key policy to the bundle descriptor file
-function addPolicyToDescriptor(apiProxy, policyName){
+//Add policies to the bundle descriptor file
+function addPoliciesToDescriptor(apiProxy, policyNames){
   fs.readFile(__dirname + '/' +apiProxy+ '/apiproxy/'+apiProxy+'.xml', function(err, data) {
       parser.parseString(data, function (err, result) {
           result.APIProxy.Policies = {
-            "Policy": policyName
-          };
+              "Policy": policyNames
+            };
           var xml = builder.buildObject(result);
           fs.writeFile(__dirname + '/' +apiProxy+ '/apiproxy/'+apiProxy+'.xml', xml, function(err, data){
             if (err) console.log(err);
@@ -160,7 +182,7 @@ function generateAPI(apiProxy, source, destination){
         callback();
       },
       function (callback) {
-        addVerifyAPIKeyPolicy(apiProxy);
+        addVerifyAPIKeyPolicy(apiProxy, "Verify-API-Key");
         callback();
       },
       function (callback) {
@@ -168,13 +190,16 @@ function generateAPI(apiProxy, source, destination){
         callback();
       },
       function (callback) {
-        addPolicyToDescriptor(apiProxy, "Verify-API-Key");
+        addJSPolicy(apiProxy, "JS-OpenAPISpecResponse");
+        callback();
+      },
+      function (callback) {
+        addPoliciesToDescriptor(apiProxy, ["Verify-API-Key", "JS-OpenAPISpecResponse"]);
         callback();
       }
     ])
   });
 }
-
 //swaggerParser.parse(options.source, function (err, api, metadata) {
   //console.log(api);
 //}
