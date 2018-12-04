@@ -7,7 +7,7 @@ var  openapi2apigee = require('openapi2apigee/lib/commands/generateApi/generateA
 var parser = new xml2js.Parser({ explicitArray: true });
 var builder = new xml2js.Builder();
 var async = require("async"); 
-
+var swaggerParser = require('swagger-parser');
 
 var schema = {
     properties: {
@@ -37,7 +37,6 @@ prompt.start();
 // Get two properties from the user: email, password
 //
 prompt.get(schema, function (err, options) {
-  //console.log(JSON.stringify(options));
   generateAPI(options.apiProxy, options.source, options.destination);
 });
 
@@ -50,16 +49,16 @@ function deleteZip(apiProxy){
 }
 
 //Create Verify API Key policy in the policies directory
-function addVerifyAPIKeyPolicy(apiProxy){
+function addVerifyAPIKeyPolicy(apiProxy, policyName){
   var verifyapikey = {
    "VerifyAPIKey":{
       "$":{
           "async": "false",
           "continueOnError": "false",
           "enabled": "true",
-          "name": "Verify-API-Key"
+          "name": policyName
       },
-      "DisplayName":"Verify-API-Key",
+      "DisplayName": policyName,
       "Properties":null,
       "APIKey":{
         "$":{
@@ -69,14 +68,36 @@ function addVerifyAPIKeyPolicy(apiProxy){
    }
   };
   var xml = builder.buildObject(verifyapikey);
-  fs.writeFile(__dirname+'/'+apiProxy+'/apiproxy/policies/Verify-API-Key.xml', xml, function(err, data){
+  fs.writeFile(__dirname+'/'+apiProxy+'/apiproxy/policies/'+policyName+'.xml', xml, function(err, data){
       if (err) console.log(err);
       console.log("Successfully Written to File.");
   });
 }
 
-//Add Verify-API-Key policy to the Proxy endpoint configuration
-function addPolicyToProxyEndpoint(apiProxy, policyName){
+//Create JS policy in the policies directory
+function addJSPolicy(apiProxy, policyName){
+  var jsPolicy = {
+   "Javascript":{
+      "$":{
+          "async": "false",
+          "continueOnError": "false",
+          "enabled": "true",
+          "timeLimit": "200",
+          "name": policyName
+      },
+      "DisplayName":policyName,
+      "Properties":null,
+      "ResourceURL": "jsc://"+policyName+".js"
+   }
+  };
+  var xml = builder.buildObject(jsPolicy);
+  fs.writeFile(__dirname+'/'+apiProxy+'/apiproxy/policies/'+policyName+'.xml', xml, function(err, data){
+      if (err) console.log(err);
+      console.log("Successfully Written to File.");
+  });
+}
+
+function addPoliciesToProxyEndpoint(apiProxy, policyName){
   var preflowStep = {
       "Step":{
       "Name": policyName
@@ -85,22 +106,63 @@ function addPolicyToProxyEndpoint(apiProxy, policyName){
   fs.readFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', function(err, data) {
       parser.parseString(data, function (err, result) {
           result.ProxyEndpoint.PreFlow[0].Request[0] = preflowStep;
+          var flag = false;
+          result.ProxyEndpoint.Flows[0].Flow.forEach(function(flow, i){
+            if(flow.$.name === "OpenAPI"){
+              flag = true;
+              return;
+            }
+          });
+          if(!flag){
+            var openAPICondFlow = {
+              "$": {
+                "name" :"OpenAPI"
+              },
+              "Condition": ["(proxy.pathsuffix MatchesPath \"/openapi\") and (request.verb = \"GET\")"],
+              "Description": ["OpenAPI Specification"],
+              "Request": [""],
+              "Response": [{
+                "Step":{
+                  "Name": "JS-OpenAPISpecResponse"
+                }
+              }]
+            };
+            result.ProxyEndpoint.Flows[0].Flow.push(openAPICondFlow);
+          }
+          var routeRule = [
+              {
+                "$":{
+                  "name": "noRoute"
+                },
+                "Condition": ["(proxy.pathsuffix MatchesPath \"/openapi\") and (request.verb = \"GET\")"]
+              },
+              {
+                "$":{
+                  "name": "default"
+                },
+                "TargetEndpoint": ["default"]
+              }
+            ];
+          
+          result.ProxyEndpoint.RouteRule = null;
+          result.ProxyEndpoint.RouteRule = routeRule;
+
           var xml = builder.buildObject(result);
           fs.writeFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', xml, function(err, data){
             if (err) console.log(err);
-            console.log("Successfully update Proxy configuration");
-        });
+            console.log("Successfully updated Proxy configuration");
+          });
       });
   });
 }
 
-//Add Verify-API-Key policy to the bundle descriptor file
-function addPolicyToDescriptor(apiProxy, policyName){
+//Add policies to the bundle descriptor file
+function addPoliciesToDescriptor(apiProxy, policyNames){
   fs.readFile(__dirname + '/' +apiProxy+ '/apiproxy/'+apiProxy+'.xml', function(err, data) {
       parser.parseString(data, function (err, result) {
           result.APIProxy.Policies = {
-            "Policy": policyName
-          };
+              "Policy": policyNames
+            };
           var xml = builder.buildObject(result);
           fs.writeFile(__dirname + '/' +apiProxy+ '/apiproxy/'+apiProxy+'.xml', xml, function(err, data){
             if (err) console.log(err);
@@ -124,6 +186,27 @@ function removePolicyToProxyEndpoint(apiProxy){
   });
 }
 
+function addJSResource(apiProxy, source, fileName){
+  var dir = __dirname + '/' +apiProxy+ '/apiproxy/resources';
+  if (!fs.existsSync(dir)){
+    fs.mkdirSync(dir);
+  }
+  var dir = __dirname + '/' +apiProxy+ '/apiproxy/resources/jsc';
+  if (!fs.existsSync(dir)){
+    fs.mkdirSync(dir);
+  }
+  swaggerParser.parse(source, function (err, api, metadata) {
+    var jsFileContent = "var spec = "+ JSON.stringify(api)+ ";\n";
+    jsFileContent = jsFileContent + "response.headers[\"Content-Type\"]=\"application/json\";\n";
+    jsFileContent = jsFileContent + "response.content.asJSON = spec;\n";
+    var filepath = __dirname + '/' +apiProxy+ '/apiproxy/resources/jsc/'+fileName+'.js';
+    fs.writeFile(filepath, jsFileContent, function(err, data){
+        if (err) throw err;
+        console.log("The file was succesfully saved!");
+    }); 
+  })
+}
+
 function generateAPI(apiProxy, source, destination){
   var options = {
     source,
@@ -131,15 +214,36 @@ function generateAPI(apiProxy, source, destination){
   };
   openapi2apigee.generateApi(apiProxy, options, function(err){
     if(err) return console.log(err);
-    deleteZip(apiProxy);
-    addVerifyAPIKeyPolicy(apiProxy);
-    addPolicyToProxyEndpoint(apiProxy, "Verify-API-Key");
-    addPolicyToDescriptor(apiProxy, "Verify-API-Key");
+    async.series([
+      function (callback) {
+        deleteZip(apiProxy);
+        callback();
+      },
+      function (callback) {
+        addVerifyAPIKeyPolicy(apiProxy, "Verify-API-Key");
+        callback();
+      },
+      function (callback) {
+        addPoliciesToProxyEndpoint(apiProxy, "Verify-API-Key");
+        callback();
+      },
+      function (callback) {
+        addJSPolicy(apiProxy, "JS-OpenAPISpecResponse");
+        callback();
+      },
+      function (callback) {
+        addPoliciesToDescriptor(apiProxy, ["Verify-API-Key", "JS-OpenAPISpecResponse"]);
+        callback();
+      },
+      function (callback) {
+        addJSResource(apiProxy, source, "JS-OpenAPISpecResponse");
+        callback();
+      }
+    ])
   });
 }
-
+//swaggerParser.parse(options.source, function (err, api, metadata) {
+  //console.log(api);
+//}
 //In case to revert the Proxy endpoint config
 //removePolicyToProxyEndpoint("testProxy");
-
-
-
