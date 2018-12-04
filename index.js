@@ -87,7 +87,7 @@ function addJSPolicy(apiProxy, policyName){
       },
       "DisplayName":policyName,
       "Properties":null,
-      "ResourceURL": policyName+".js"
+      "ResourceURL": "jsc://"+policyName+".js"
    }
   };
   var xml = builder.buildObject(jsPolicy);
@@ -121,7 +121,11 @@ function addPoliciesToProxyEndpoint(apiProxy, policyName){
               "Condition": ["(proxy.pathsuffix MatchesPath \"/openapi\") and (request.verb = \"GET\")"],
               "Description": ["OpenAPI Specification"],
               "Request": [""],
-              "Response": [""]
+              "Response": [{
+                "Step":{
+                  "Name": "JS-OpenAPISpecResponse"
+                }
+              }]
             };
             result.ProxyEndpoint.Flows[0].Flow.push(openAPICondFlow);
           }
@@ -142,6 +146,7 @@ function addPoliciesToProxyEndpoint(apiProxy, policyName){
           
           result.ProxyEndpoint.RouteRule = null;
           result.ProxyEndpoint.RouteRule = routeRule;
+
           var xml = builder.buildObject(result);
           fs.writeFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', xml, function(err, data){
             if (err) console.log(err);
@@ -181,6 +186,27 @@ function removePolicyToProxyEndpoint(apiProxy){
   });
 }
 
+function addJSResource(apiProxy, source, fileName){
+  var dir = __dirname + '/' +apiProxy+ '/apiproxy/resources';
+  if (!fs.existsSync(dir)){
+    fs.mkdirSync(dir);
+  }
+  var dir = __dirname + '/' +apiProxy+ '/apiproxy/resources/jsc';
+  if (!fs.existsSync(dir)){
+    fs.mkdirSync(dir);
+  }
+  swaggerParser.parse(source, function (err, api, metadata) {
+    var jsFileContent = "var spec = "+ JSON.stringify(api)+ ";\n";
+    jsFileContent = jsFileContent + "response.headers[\"Content-Type\"]=\"application/json\";\n";
+    jsFileContent = jsFileContent + "response.content.asJSON = spec;\n";
+    var filepath = __dirname + '/' +apiProxy+ '/apiproxy/resources/jsc/'+fileName+'.js';
+    fs.writeFile(filepath, jsFileContent, function(err, data){
+        if (err) throw err;
+        console.log("The file was succesfully saved!");
+    }); 
+  })
+}
+
 function generateAPI(apiProxy, source, destination){
   var options = {
     source,
@@ -207,6 +233,10 @@ function generateAPI(apiProxy, source, destination){
       },
       function (callback) {
         addPoliciesToDescriptor(apiProxy, ["Verify-API-Key", "JS-OpenAPISpecResponse"]);
+        callback();
+      },
+      function (callback) {
+        addJSResource(apiProxy, source, "JS-OpenAPISpecResponse");
         callback();
       }
     ])
