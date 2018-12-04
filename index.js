@@ -17,7 +17,7 @@ var schema = {
         required: true
       },
       source: {
-        description: colors.yellow("Please provide the OpenAPI Spec URL or full path of the file"),
+        description: colors.yellow("Please provide the OpenAPI Spec URL or full path of the file (https://petstore.swagger.io/v2/swagger.json)"),
         message: colors.red("Source cannot be empty!"),
         required: true
       },
