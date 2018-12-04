@@ -7,7 +7,7 @@ var  openapi2apigee = require('openapi2apigee/lib/commands/generateApi/generateA
 var parser = new xml2js.Parser({ explicitArray: true });
 var builder = new xml2js.Builder();
 var async = require("async"); 
-
+var swaggerParser = require('swagger-parser');
 
 var schema = {
     properties: {
@@ -75,8 +75,7 @@ function addVerifyAPIKeyPolicy(apiProxy){
   });
 }
 
-//Add Verify-API-Key policy to the Proxy endpoint configuration
-function addPolicyToProxyEndpoint(apiProxy, policyName){
+function addPoliciesToProxyEndpoint(apiProxy, policyName){
   var preflowStep = {
       "Step":{
       "Name": policyName
@@ -85,11 +84,30 @@ function addPolicyToProxyEndpoint(apiProxy, policyName){
   fs.readFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', function(err, data) {
       parser.parseString(data, function (err, result) {
           result.ProxyEndpoint.PreFlow[0].Request[0] = preflowStep;
+          var flag = false;
+          result.ProxyEndpoint.Flows[0].Flow.forEach(function(flow, i){
+            if(flow.$.name === "OpenAPI"){
+              flag = true;
+              return;
+            }
+          });
+          if(!flag){
+            var openAPICondFlow = {
+              "$": {
+                "name" :"OpenAPI"
+              },
+              "Condition": ["(proxy.pathsuffix MatchesPath \"/openapi\")"],
+              "Description": ["OpenAPI Specification"],
+              "Request": [""],
+              "Response": [""]
+            };
+            result.ProxyEndpoint.Flows[0].Flow.push(openAPICondFlow);
+          }
           var xml = builder.buildObject(result);
           fs.writeFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', xml, function(err, data){
             if (err) console.log(err);
-            console.log("Successfully update Proxy configuration");
-        });
+            console.log("Successfully updated Proxy configuration");
+          });
       });
   });
 }
@@ -131,15 +149,34 @@ function generateAPI(apiProxy, source, destination){
   };
   openapi2apigee.generateApi(apiProxy, options, function(err){
     if(err) return console.log(err);
-    deleteZip(apiProxy);
+    /*deleteZip(apiProxy);
     addVerifyAPIKeyPolicy(apiProxy);
     addPolicyToProxyEndpoint(apiProxy, "Verify-API-Key");
-    addPolicyToDescriptor(apiProxy, "Verify-API-Key");
+    addPolicyToDescriptor(apiProxy, "Verify-API-Key");*/
+
+    async.series([
+      function (callback) {
+        deleteZip(apiProxy);
+        callback();
+      },
+      function (callback) {
+        addVerifyAPIKeyPolicy(apiProxy);
+        callback();
+      },
+      function (callback) {
+        addPoliciesToProxyEndpoint(apiProxy, "Verify-API-Key");
+        callback();
+      },
+      function (callback) {
+        addPolicyToDescriptor(apiProxy, "Verify-API-Key");
+        callback();
+      }
+    ])
   });
 }
 
+//swaggerParser.parse(options.source, function (err, api, metadata) {
+  //console.log(api);
+//}
 //In case to revert the Proxy endpoint config
 //removePolicyToProxyEndpoint("testProxy");
-
-
-
