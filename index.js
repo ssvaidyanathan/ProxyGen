@@ -118,13 +118,30 @@ function addPoliciesToProxyEndpoint(apiProxy, policyName){
               "$": {
                 "name" :"OpenAPI"
               },
-              "Condition": ["(proxy.pathsuffix MatchesPath \"/openapi\")"],
+              "Condition": ["(proxy.pathsuffix MatchesPath \"/openapi\") and (request.verb = \"GET\")"],
               "Description": ["OpenAPI Specification"],
               "Request": [""],
               "Response": [""]
             };
             result.ProxyEndpoint.Flows[0].Flow.push(openAPICondFlow);
           }
+          var routeRule = [
+              {
+                "$":{
+                  "name": "noRoute"
+                },
+                "Condition": ["(proxy.pathsuffix MatchesPath \"/openapi\") and (request.verb = \"GET\")"]
+              },
+              {
+                "$":{
+                  "name": "default"
+                },
+                "TargetEndpoint": ["default"]
+              }
+            ];
+          
+          result.ProxyEndpoint.RouteRule = null;
+          result.ProxyEndpoint.RouteRule = routeRule;
           var xml = builder.buildObject(result);
           fs.writeFile(__dirname + '/' +apiProxy+ '/apiproxy/proxies/default.xml', xml, function(err, data){
             if (err) console.log(err);
@@ -171,11 +188,6 @@ function generateAPI(apiProxy, source, destination){
   };
   openapi2apigee.generateApi(apiProxy, options, function(err){
     if(err) return console.log(err);
-    /*deleteZip(apiProxy);
-    addVerifyAPIKeyPolicy(apiProxy);
-    addPolicyToProxyEndpoint(apiProxy, "Verify-API-Key");
-    addPolicyToDescriptor(apiProxy, "Verify-API-Key");*/
-
     async.series([
       function (callback) {
         deleteZip(apiProxy);
