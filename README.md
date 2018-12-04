@@ -13,4 +13,3 @@ Generate Proxy using OpenAPI Spec and include a VerifyAPIKey policy automaticall
 ### To-Do:
 - Add other policies like Flow Callout in the Preflow
 - Fault Rules
-- Include the spec as a conditional flow
